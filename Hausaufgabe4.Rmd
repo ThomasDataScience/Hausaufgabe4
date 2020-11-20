@@ -1,0 +1,122 @@
+---
+title: "Hausaufgabe4"
+output: html_notebook
+---
+```{r}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(pROC)
+```
+
+# Erstellen Sie ein Notebook mit weiteren Features.
+
+
+# Algo 1: Support Vector Machine 
+
+```{r}
+(titanic.svm <- titanic %>%
+  select(survived,cabin,embarked,boat))
+```
+
+# Alle NAs rausnehmen
+
+```{r}
+titanic.svm <- na.omit(titanic.svm)
+```
+
+# Für das Training und Testing
+
+```{r}
+set.seed(107)
+inTrain <- createDataPartition(
+  y = titanic.svm$survived,
+  p = .8,
+  list = FALSE)
+training <- titanic.svm[ inTrain,]
+testing  <- titanic.svm[-inTrain,]
+```
+
+# Entwerfe jetzt ein model auf der Grundlage survived
+
+```{r}
+model <- svm(survived ~ ., data = training) 
+summary(model)
+pred <- predict(model, testing[,-1], probability = FALSE)
+```
+
+```{r}
+(test.results <- cbind(pred, testing))
+```
+
+```{r}
+test.results2 <- test.results %>%
+  mutate(pred = ifelse(pred>=0.5,1,0))
+table(test.results2$pred, testing$survived)
+```
+
+
+```{r}
+pROC_obj <- roc(test.results$survived, test.results$pred,
+            smoothed = TRUE,
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+```
+
+# Algo 2: Naive Bayes
+
+# Aus Zahlenwerten werden Kategorien (factors)
+
+# Wie wahrscheinlich ist es, dass der Passagier überlebt hat, bezüglich der Kabine, in der er untergebracht war ?
+
+```{r}
+my_training <- training %>%
+  mutate(survived = as.factor(survived))%>%
+  mutate(cabin = as.factor(cabin))%>%
+  mutate(embarked = as.factor(embarked)) %>%
+  mutate(boat = as.factor(boat))
+model <- naiveBayes(survived ~ ., data = my_training)
+model
+```
+
+```{r}
+my_testing <- testing %>%
+  mutate(cabin = as.factor(cabin)) %>%
+  mutate(embarked = as.factor(embarked))%>%
+  mutate(boat = as.factor(boat))
+pred <- predict(model, my_testing)
+table(pred, my_testing$survived)
+```
+
+
+```{r}
+(test.results <- cbind(pred, my_testing))
+```
+
+```{r}
+test.results <- test.results %>%
+  mutate(pred = as.numeric(pred))
+pROC_obj <- roc(as.numeric(as.character(test.results$survived)), test.results$pred,
+            smoothed = TRUE,
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+```
+
+# Algo 3: Decision Tree 
+
+
+```{r}
+library(rpart)
+library(rpart.plot)
+tree<- rpart(survived~., data = training, method = 'class')
+rpart.plot(tree)
+```
+
+# Die Unterschiede in der Performance der Algorithmen:
+
+# Soweit ich es verstanden habe, klassifiziert der Naive Bayes nach der höchsten Wahrscheinlichkeit, er rechnet also mit Wahrscheinlichkeiten und nicht mit einer binären Aufteilung wie die Support Vector Machine, die nur mit numerischen Werten arbeitet.
+
+# Ich schätze, in meinem Beispiel hat der Decision Tree nicht funktioniert, da es sich nicht um eine zweiteilige Ja-Nein-Frage oder um eine True-False-Annahme handelt, sondern die Werte zu weit gestreut sind, es gibt ja mehrere  Kabinen auf der Titanic, und eine jede hat ihre eigene Nummerierung. 
+
